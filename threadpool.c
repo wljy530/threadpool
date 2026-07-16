@@ -62,13 +62,6 @@ ThreadPool* threadPoolCreate(int min, int max, int queueCapacity)  // 最小线程数
 		}
 		memset(pool->threadIDs, 0, max * sizeof(pthread_t));  // 如果线程ID为0则未被占用
 
-		// 创建管理者线程和工作线程
-		pthread_create(&pool->managerID, NULL, manager, pool);
-		for (int i = 0; i < min; i++)
-		{
-			pthread_create(&pool->threadIDs[i], NULL, worker, pool);
-		}
-
 		// 初始化线程池成员
 		pool->minNum = min;
 		pool->maxNum = max;
@@ -92,6 +85,13 @@ ThreadPool* threadPoolCreate(int min, int max, int queueCapacity)  // 最小线程数
 		pool->queueRear = 0;
 
 		pool->shutdown = 0;
+
+		// 创建管理者线程和工作线程
+		pthread_create(&pool->managerID, NULL, manager, pool);
+		for (int i = 0; i < min; i++)
+		{
+			pthread_create(&pool->threadIDs[i], NULL, worker, pool);
+		}
 
 		return pool;
 	} while (0);
@@ -237,21 +237,10 @@ void* worker(void* arg)
 		}
 
 		// 判断线程池是否被关闭了
-		if (pool->shutdown)
+		if (pool->shutdown && pool->queueSize == 0)
 		{
-			int maxNum = pool->maxNum;
-			int tid = pthread_self();
-			for (int i = 0; i < maxNum; i++)
-			{
-				if (pool->threadIDs[i] == tid)
-				{
-					pool->threadIDs[i] = 0;
-					break;
-				}
-			}
-
 			pthread_mutex_unlock(&pool->mutexPool);
-			pthread_exit(pool);
+			pthread_exit(NULL);
 		}
 
 		// 从任务队列中取出一个任务
