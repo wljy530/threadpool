@@ -63,10 +63,10 @@ ThreadPool* threadPoolCreate(int min, int max, int queueCapacity)  // 最小线程数
 		memset(pool->threadIDs, 0, max * sizeof(pthread_t));  // 如果线程ID为0则未被占用
 
 		// 创建管理者线程和工作线程
-		pthread_create(&pool->managerID, NULL, manager, NULL);
+		pthread_create(&pool->managerID, NULL, manager, pool);
 		for (int i = 0; i < min; i++)
 		{
-			pthread_create(&pool->threadIDs[i], NULL, worker, NULL);
+			pthread_create(&pool->threadIDs[i], NULL, worker, pool);
 		}
 
 		// 初始化线程池成员
@@ -76,10 +76,10 @@ ThreadPool* threadPoolCreate(int min, int max, int queueCapacity)  // 最小线程数
 		pool->liveNum = min;  // 和最小个数相等
 		pool->exitNum = 0;
 
-		if (pthread_mutex_init(&pool->mutexPool, NULL) == 0 ||
-			pthread_mutex_init(&pool->mutexBusy, NULL) == 0 ||
-			pthread_cond_init(&pool->notFull, NULL) == 0 ||
-			pthread_cond_init(&pool->notEmpty, NULL) == 0)
+		if (pthread_mutex_init(&pool->mutexPool, NULL) != 0 ||
+			pthread_mutex_init(&pool->mutexBusy, NULL) != 0 ||
+			pthread_cond_init(&pool->notFull, NULL) != 0 ||
+			pthread_cond_init(&pool->notEmpty, NULL) != 0)
 		{
 			printf("mutex or condition init fail...\n");
 			break;
@@ -154,6 +154,8 @@ int threadPoolDestroy(ThreadPool* pool)
 	}
 	free(pool);
 	pool = NULL;
+
+	return 0;
 }
 
 void threadPoolAdd(ThreadPool* pool, void(*func)(void*), void* arg)
@@ -274,8 +276,6 @@ void* worker(void* arg)
 
 		// 执行任务
 		task.function(task.arg);
-		//free(task.function);
-		//task.function = NULL;
 		free(arg);
 		task.arg = NULL;
 

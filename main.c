@@ -7,8 +7,8 @@
 void taskFunc(void* arg)
 {
 	int num = *(int*)arg;
-	printf("thread %ld is working, number = %d, tid = %ld\n", num, pthread_self());
-	usleep(1000);
+	printf("thread %ld is working, number = %d\n", pthread_self(), num);
+	sleep(1);
 }
 
 int main()
@@ -22,8 +22,6 @@ int main()
 		*num = i + 100;
 		threadPoolAdd(pool, taskFunc, num);
 	}
-
-	sleep(30);
 
 	// 销毁线程池
 	threadPoolDestroy(pool);
