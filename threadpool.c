@@ -251,7 +251,7 @@ void* worker(void* arg)
 			}
 
 			pthread_mutex_unlock(&pool->mutexPool);
-			pthread_exit(NULL);
+			pthread_exit(pool);
 		}
 
 		// 从任务队列中取出一个任务
@@ -276,7 +276,7 @@ void* worker(void* arg)
 
 		// 执行任务
 		task.function(task.arg);
-		free(arg);
+		free(task.arg);
 		task.arg = NULL;
 
 		printf("thread %ld end working...\n", pthread_self());
@@ -339,7 +339,7 @@ void* manager(void* arg)
 		{
 			// 上互斥锁(标志线程池处于需要销毁线程状态)
 			pthread_mutex_lock(&pool->mutexPool);
-			pool->exitNum = 2;  // 一次销毁两个线程
+			pool->exitNum = NUMBER;  // 一次销毁两个线程
 			pthread_mutex_unlock(&pool->mutexPool);
 
 			for (int i = 0; i < NUMBER; i++)
