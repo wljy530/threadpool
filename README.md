@@ -1,1 +1,2 @@
-# threadpool
+# threadpool(Linux下实现的线程池)
+配合线程锁完成线程管理，线程消费，任务生成等自主管理功能
