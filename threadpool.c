@@ -1,6 +1,9 @@
 #define _GNU_SOURCE
 #include <pthread.h>
 #include <string.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
 #include "threadpool.h"
 
 const int NUMBER = 2;  // 添加线程一次加两个
@@ -121,6 +124,15 @@ int threadPoolDestroy(ThreadPool* pool)
 		pthread_cond_signal(&pool->notEmpty);
 	}
 
+	// 等待回收消费者线程
+	for (int i = 0; i < pool->maxNum; i++)
+	{
+		if (pool->threadIDs[i] != 0)
+		{
+			pthread_join(pool->threadIDs[i], NULL);
+		}
+	}
+
 	// 回收互斥锁资源
 	pthread_mutex_destroy(&pool->mutexBusy);
 	pthread_mutex_destroy(&pool->mutexPool);
@@ -142,8 +154,6 @@ int threadPoolDestroy(ThreadPool* pool)
 	}
 	free(pool);
 	pool = NULL;
-
-
 }
 
 void threadPoolAdd(ThreadPool* pool, void(*func)(void*), void* arg)
@@ -203,7 +213,7 @@ void* worker(void* arg)
 		pthread_mutex_lock(&pool->mutexPool);
 
 		// 当前任务队列为空，并且线程池未关闭
-		while (pool->queueSize == 0 && pool->shutdown != 0)  // 这里的循环是防止虚假唤醒
+		while (pool->queueSize == 0 && pool->shutdown == 0)  // 这里的循环是防止虚假唤醒
 		{
 			// 阻塞工作线程
 			pthread_cond_wait(&pool->notEmpty, &pool->mutexPool);
@@ -227,6 +237,17 @@ void* worker(void* arg)
 		// 判断线程池是否被关闭了
 		if (pool->shutdown)
 		{
+			int maxNum = pool->maxNum;
+			int tid = pthread_self();
+			for (int i = 0; i < maxNum; i++)
+			{
+				if (pool->threadIDs[i] == tid)
+				{
+					pool->threadIDs[i] = 0;
+					break;
+				}
+			}
+
 			pthread_mutex_unlock(&pool->mutexPool);
 			pthread_exit(NULL);
 		}
@@ -249,7 +270,6 @@ void* worker(void* arg)
 		// 上互斥锁(修改忙的线程数量)
 		pthread_mutex_lock(&pool->mutexBusy);
 		pool->busyNum++;
-		// 解互斥锁(结束修改)
 		pthread_mutex_unlock(&pool->mutexBusy);
 
 		// 执行任务
@@ -304,7 +324,7 @@ void* manager(void* arg)
 			{
 				if (pool->threadIDs[i] == 0)
 				{
-					pthread_create(pool->threadIDs[i], NULL, worker, pool);  // 传入pool地址
+					pthread_create(&pool->threadIDs[i], NULL, worker, pool);  // 传入pool地址
 					counter++;
 
 					pool->liveNum++;  // 存活线程数量+1
@@ -334,7 +354,7 @@ void* manager(void* arg)
 
 void threadExit(ThreadPool* pool)
 {
-	pthread_mutex_lock(&pool);
+	pthread_mutex_lock(&pool->mutexPool);
 	pthread_t tid = pthread_self();
 	for (int i = 0; i < pool->maxNum; i++)
 	{
@@ -345,7 +365,7 @@ void threadExit(ThreadPool* pool)
 			break;
 		}
 	}
-	pthread_mutex_unlock(&pool);
+	pthread_mutex_unlock(&pool->mutexPool);
 
 	pthread_exit(NULL);
 }
